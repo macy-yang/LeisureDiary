@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--用于登录、切换账号控件-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--    圆角   -->
+    <corners android:radius="30dp"/>
+    <!--    背景色   -->
+    <solid android:color="@color/teal_200"/>
+    <!--    宽高   -->
+    <size
+        android:height="20dp"
+        android:width="100dp"/>
+    <!--    内边距   -->
+    <padding android:left="5dp"
+        android:top="5dp"
+        android:right="5dp"
+        android:bottom="5dp"/>
+    <!--    边框颜色以及边框大小   -->
+    <stroke android:color="@color/transparent"
+        android:width="@dimen/dialog_view_width"/>
+</shape>
