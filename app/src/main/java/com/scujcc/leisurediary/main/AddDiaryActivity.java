@@ -1,5 +1,6 @@
 package com.scujcc.leisurediary.main;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AlertDialog;
@@ -31,26 +32,37 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import com.baidu.location.BDAbstractLocationListener;
+import com.baidu.location.BDLocation;
+import com.baidu.location.LocationClient;
+import com.baidu.location.LocationClientOption;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.scujcc.leisurediary.R;
-import com.scujcc.leisurediary.login.LoginActivity;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
 /**
  * 添加游记
+ *
  * @author 杨梦婷
  * time:2022/11/18
  */
 public class AddDiaryActivity extends AppCompatActivity {
+    private EditText diary_location;
+    public LocationClient mLocationClient = null;
+    private MyLocationListener myListener = new MyLocationListener();
+
+
     private static String[] items = new String[]{
             "拍照",
             "从相册中选择",
@@ -65,15 +77,38 @@ public class AddDiaryActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        try {
+            LocationClient.setAgreePrivacy(true);
+            mLocationClient = new LocationClient(getApplicationContext());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        LocationClientOption option = new LocationClientOption();
+        option.setLocationMode(LocationClientOption.LocationMode.Hight_Accuracy);
+        option.setCoorType("bd09ll");
+        option.setScanSpan(1000);
+        option.setOpenGps(false);
+        option.setLocationNotify(false);
+        option.setIgnoreKillProcess(false);
+        option.SetIgnoreCacheException(false);
+        option.setWifiCacheTimeOut(1000);
+        option.setEnableSimulateGps(false);
+        option.setIsNeedAddress(true);
+        option.setNeedNewVersionRgc(true);
+        mLocationClient.setLocOption(option);
+        mLocationClient.registerLocationListener(myListener);
+
         setContentView(R.layout.activity_add_diary);
 
         //自动显示时间
         EditText diary_time = (EditText) findViewById(R.id.diary_time);
         Calendar now = new GregorianCalendar();
-        SimpleDateFormat simpleDate = new SimpleDateFormat("yyyyMMddHH", Locale.getDefault());
+        SimpleDateFormat simpleDate = new SimpleDateFormat("yyyy年MM月dd日HH时", Locale.getDefault());
         diary_time.setText(simpleDate.format(now.getTime()));
-        //TODO 自动显示地点
-        EditText diary_location = (EditText) findViewById(R.id.diary_location);
+
+//        LocationClient.setAgreePrivacy(true);
+        diary_location = findViewById(R.id.diary_location);
+
         //游记文字
         EditText diary_content = (EditText) findViewById(R.id.diary_content);
         //竖向滑动
@@ -82,18 +117,48 @@ public class AddDiaryActivity extends AppCompatActivity {
         diary_content.setMovementMethod(ScrollingMovementMethod.getInstance());
         diary_content.setSelection(diary_content.getText().length(), diary_content.getText().length());
         //拍照或者选取照片界面
-        FloatingActionButton add_diary_image = (FloatingActionButton)findViewById(R.id.add_diary_image);
+        FloatingActionButton add_diary_image = (FloatingActionButton) findViewById(R.id.add_diary_image);
         add_diary_image.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
 //                requestPermission();
                 askPermission();
                 choosePic();
-
             }
         });
 
+        List<String>permissionList = new ArrayList<>();
+        if(ContextCompat.checkSelfPermission(AddDiaryActivity.this, Manifest.permission.ACCESS_FINE_LOCATION)!= PackageManager.PERMISSION_GRANTED){
+            permissionList.add(Manifest.permission.ACCESS_FINE_LOCATION);
+        }
+        if(ContextCompat.checkSelfPermission(AddDiaryActivity.this, Manifest.permission.ACCESS_COARSE_LOCATION)!= PackageManager.PERMISSION_GRANTED){
+            permissionList.add(Manifest.permission.ACCESS_COARSE_LOCATION);
+        }
+        if(ContextCompat.checkSelfPermission(AddDiaryActivity.this, Manifest.permission.ACCESS_WIFI_STATE)!= PackageManager.PERMISSION_GRANTED){
+            permissionList.add(Manifest.permission.ACCESS_WIFI_STATE);
+        }
+        if(ContextCompat.checkSelfPermission(AddDiaryActivity.this, Manifest.permission.ACCESS_NETWORK_STATE)!= PackageManager.PERMISSION_GRANTED){
+            permissionList.add(Manifest.permission.ACCESS_NETWORK_STATE);
+        }
+        if(ContextCompat.checkSelfPermission(AddDiaryActivity.this, Manifest.permission.CHANGE_WIFI_STATE)!= PackageManager.PERMISSION_GRANTED){
+            permissionList.add(Manifest.permission.CHANGE_WIFI_STATE);
+        }
+        if(ContextCompat.checkSelfPermission(AddDiaryActivity.this, Manifest.permission.INTERNET)!= PackageManager.PERMISSION_GRANTED){
+            permissionList.add(Manifest.permission.INTERNET);
+        }
+        if(ContextCompat.checkSelfPermission(AddDiaryActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE)!= PackageManager.PERMISSION_GRANTED){
+            permissionList.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        }
+        //如果非空
+        if(!permissionList.isEmpty()){
+            String[] permissions = permissionList.toArray(new String[permissionList.size()]);
+            ActivityCompat.requestPermissions(AddDiaryActivity.this,permissions,1);
+        }else{
+            requestLocation();
+        }
+
     }
+
     private void askPermission() {
 
         ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE,
@@ -102,8 +167,9 @@ public class AddDiaryActivity extends AppCompatActivity {
         }, 0);
 
     }
+
     private void choosePic() {
-        FloatingActionButton add_diary_image = (FloatingActionButton)findViewById(R.id.add_diary_image);
+        FloatingActionButton add_diary_image = (FloatingActionButton) findViewById(R.id.add_diary_image);
         AlertDialog.Builder builder = new AlertDialog.Builder(AddDiaryActivity.this)
                 .setTitle("请选择图片")//设置对话框 标题
                 .setItems(items, new DialogInterface.OnClickListener() {
@@ -122,12 +188,14 @@ public class AddDiaryActivity extends AppCompatActivity {
         builder.create()
                 .show();
     }
+
     private void openGallery() {
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
         //intent.setType("image/*");
         startActivityForResult(intent, SCAN_OPEN_PHONE);
 
     }
+
     @RequiresApi(api = Build.VERSION_CODES.N)
     private void openCamera() {
         //时间命名
@@ -184,6 +252,7 @@ public class AddDiaryActivity extends AppCompatActivity {
         intent0.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
         startActivityForResult(intent0, TAKE_PHOTO);
     }
+
     @SuppressLint("SetTextI18n")
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -239,15 +308,17 @@ public class AddDiaryActivity extends AppCompatActivity {
     }
 
     //焦点消失，外部键盘消失
+
     /**
      * 获取当前点击位置是否为EditText
-     * @param view 焦点所在View
+     *
+     * @param view  焦点所在View
      * @param event 触摸事件
      * @return
      */
-    public  boolean isClickEt(View view, MotionEvent event) {
+    public boolean isClickEt(View view, MotionEvent event) {
         if (view != null && (view instanceof EditText)) {
-            int[] leftTop = { 0, 0 };
+            int[] leftTop = {0, 0};
             //获取输入框当前的location位置
             view.getLocationInWindow(leftTop);
             int left = leftTop[0];
@@ -305,32 +376,90 @@ public class AddDiaryActivity extends AppCompatActivity {
             // 如果App的权限申请曾经被用户拒绝过，就需要在这里跟用户做出解释
             if (ActivityCompat.shouldShowRequestPermissionRationale(this,
                     Manifest.permission.CAMERA)) {
-                Toast.makeText(AddDiaryActivity.this,"请进入设置-应用管理-打开相机权限",Toast.LENGTH_SHORT).show();
+                Toast.makeText(AddDiaryActivity.this, "请进入设置-应用管理-打开相机权限", Toast.LENGTH_SHORT).show();
 
             } else {
                 // 进行权限请求
                 ActivityCompat.requestPermissions(
-                                this,
-                                new String[]{Manifest.permission.CAMERA},
-                                CAMERA_REQ_CODE);
+                        this,
+                        new String[]{Manifest.permission.CAMERA},
+                        CAMERA_REQ_CODE);
             }
         }
-
     }
 
-//    @Override
-//    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
-//        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-//        if (requestCode == CAMERA_REQ_CODE) {
-//            // 如果请求被拒绝，那么通常grantResults数组为空
-//            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-//                // 申请成功，进行相应操作
-//                Intent intent = new Intent(AddDiaryActivity.this, CameraActivity.class);
-//                startActivity(intent);
-//            } else {
-//                // 申请失败，可以继续向用户解释。
-//                Toast.makeText(AddDiaryActivity.this, "没有相机权限,您可能无法正常使用本应用", Toast.LENGTH_LONG).show();
-//            }
-//        }
-//    }
+    private void requestLocation(){
+        mLocationClient.start();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        switch (requestCode) {
+            case 1:
+                if (grantResults.length > 0) {
+                    for (int result : grantResults) {
+                        if (result != PackageManager.PERMISSION_GRANTED) {
+                            Toast.makeText(this, "必须同意所有权限才可以使用应用", Toast.LENGTH_SHORT).show();
+                            finish();
+                            return;
+                        }
+                    }
+                    //同意了才会执行到这里
+                    requestLocation();
+                } else {
+                    Toast.makeText(this, "发生未知错误", Toast.LENGTH_SHORT).show();
+                    finish();
+                }
+        }
+    }
+
+    public class MyLocationListener extends BDAbstractLocationListener {
+        @Override
+        public void onReceiveLocation(BDLocation location){
+            //回到主线程中更新UI
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    StringBuilder currentPosition = new StringBuilder();
+//                    currentPosition.append("纬度：").append(location.getLatitude()).append("\n");
+//                    currentPosition.append("经度：").append(location.getLongitude()).append("\n");
+//                    currentPosition.append("定位精度：").append(location.getRadius()).append("\n");
+//                    currentPosition.append("经纬度坐标类型：").append(location.getCoorType()).append("\n");
+//                    currentPosition.append("定位类型、定位错误返回码：").append(location.getLocType()).append(":");
+                    if(location.getLocType() == 161){
+//                        currentPosition.append("网络定位成功").append("\n");
+                        Log.e("网络定位成功", "网络定位成功");
+                    }else if(location.getLocType() == 505){
+//                        currentPosition.append("server校验KEY失败，请确认KEY合法").append("\n");
+                        Log.e("server校验KEY失败，请确认KEY合法", "server校验KEY失败，请确认KEY合法");
+                    }
+                    currentPosition.append(location.getAddrStr());
+                    if(location.getLocType() == BDLocation.TypeGpsLocation){
+//                        currentPosition.append("GPS").append("\n");
+                    }else if(location.getLocType() == BDLocation.TypeNetWorkLocation){
+                        if(location.getNetworkLocationType().equals("wf")){
+//                            currentPosition.append("wifi").append("\n");
+                        }else if(location.getNetworkLocationType().equals("cl") ){
+//                            currentPosition.append("cell").append("\n");
+                        }else if(location.getNetworkLocationType().equals("ll")){
+//                            currentPosition.append("GPS").append("\n");
+                        }else if(location.getNetworkLocationType() .equals("null")){
+//                            currentPosition.append("未获取到定位结果采用的类型").append("\n");
+                        }
+                    }
+
+                    /*
+                    Poi poi = location.getPoiList().get(2);
+                    currentPosition.append("POI：").append(poi.getName()).append(poi.getTags()).append(poi.getAddr()).append("\n");
+                    PoiRegion poiRegion= location.getPoiRegion();
+                    currentPosition.append( poiRegion.getDerectionDesc()).append(poiRegion.getName()).append(poiRegion.getTags()).append("\n");
+                    */
+                    diary_location.setText(currentPosition.toString());
+                }
+            });
+
+        }
+    }
+
 }
